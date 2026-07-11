@@ -3,251 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minecraft 1D - Web Edition</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #1a1a1a;
-            color: #fff;
-            font-family: 'Courier New', Courier, monospace;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            overflow: hidden;
-        }
-        h1 {
-            margin-bottom: 10px;
-            font-size: 24px;
-            text-shadow: 2px 2px #000;
-        }
-        canvas {
-            border: 4px solid #333;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            background-color: #87CEEB; /* Голубое небо */
-        }
-        .controls {
-            margin-top: 15px;
-            text-align: center;
-            font-size: 14px;
-            color: #aaa;
-            line-height: 1.5;
-        }
-    </style>
+    <title>Minecraft 1D - Ultimate Web Edition</title>
+    
+    <!-- Подключение шрифтов для ретро-атмосферы -->
+    <link rel="preconnect" href="https://googleapis.com">
+    <link rel="preconnect" href="https://gstatic.com" crossorigin>
+    <link href="https://googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <!-- Подключение внешних стилей -->
+    <link rel="stylesheet" href="index.css">
 </head>
 <body>
 
-    <h1>Minecraft 1D ⛏️</h1>
-    <canvas id="gameCanvas" width="800" height="400"></canvas>
-    
-    <div class="controls">
-        <strong>A / D</strong> (или Стрелки) — Движение | 
-        <strong>ПРОБЕЛ</strong> — Разрушить блок | 
-        <strong>E</strong> — Поставить блок<br>
-        <strong>Цифры 1 - 5</strong> — Выбор блока в хотбаре
+    <!-- Главный игровой контейнер -->
+    <div class="game-container">
+        
+        <!-- Заголовок игры -->
+        <h1 class="game-title">Minecraft 1D ⛏️</h1>
+        
+        <!-- Окно рендеринга игры -->
+        <div class="canvas-wrapper">
+            <canvas id="gameCanvas" width="800" height="400"></canvas>
+            
+            <!-- Интерактивный HTML-интерфейс поверх экрана (HUD) -->
+            <div id="gameUi" class="game-ui">
+                <div class="hud-top">
+                    <div id="playerHp" class="player-hp">❤️❤️❤️❤️❤️❤️❤️❤️❤️❤️</div>
+                    <div id="coordsDisplay" class="coords-display">X: 50</div>
+                </div>
+                
+                <!-- Графический хотбар (быстрый инвентарь) -->
+                <div id="hotbar" class="hotbar-container">
+                    <div class="hotbar-slot active" data-slot="0"><div class="block-icon grass"></div><span class="count">10</span></div>
+                    <div class="hotbar-slot" data-slot="1"><div class="block-icon dirt"></div><span class="count">10</span></div>
+                    <div class="hotbar-slot" data-slot="2"><div class="block-icon stone"></div><span class="count">5</span></div>
+                    <div class="hotbar-slot" data-slot="3"><div class="block-icon coal"></div><span class="count">0</span></div>
+                    <div class="hotbar-slot" data-slot="4"><div class="block-icon iron"></div><span class="count">0</span></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Панель управления и подсказок -->
+        <div class="controls-panel">
+            <div class="control-group">
+                <kbd>A</kbd> <kbd>D</kbd> / <kbd>←</kbd> <kbd>→</kbd> <span>— Перемещение Стива</span>
+            </div>
+            <div class="control-group">
+                <kbd>ПРОБЕЛ</kbd> <span>— Разрушить блок (под собой)</span>
+            </div>
+            <div class="control-group">
+                <kbd>E</kbd> <span>— Поставить выбранный блок</span>
+            </div>
+            <div class="control-group">
+                <kbd>1</kbd> - <kbd>5</kbd> <span>— Быстрый выбор в хотбаре</span>
+            </div>
+        </div>
+
     </div>
 
-    <script>
-        const canvas = document.getElementById("gameCanvas");
-        const ctx = canvas.getContext("2d");
-
-        // --- НАСТРОЙКИ ИГРЫ ---
-        const BLOCK_SIZE = 40;
-        const WORLD_SIZE = 100;
-        const FLOOR_Y = canvas.height / 2;
-
-        // Конфигурация блоков
-        const BLOCK_TYPES = {
-            "AIR": { color: "#323232", name: "Воздух", mineable: false },
-            "GRASS": { color: "#228B22", name: "Трава", mineable: true },
-            "DIRT": { color: "#8B4513", name: "Земля", mineable: true },
-            "STONE": { color: "#808080", name: "Камень", mineable: true },
-            "COAL_ORE": { color: "#464646", name: "Угольная руда", mineable: true },
-            "IRON_ORE": { color: "#D2691E", name: "Железная руда", mineable: true },
-            "BEDROCK": { color: "#141414", name: "Бедрок", mineable: false }
-        };
-
-        // --- МИР ---
-        let world = [];
-        function generateWorld() {
-            for (let i = 0; i < WORLD_SIZE; i++) {
-                if (i === 0 || i === WORLD_SIZE - 1) {
-                    world.push("BEDROCK");
-                    continue;
-                }
-                let rand = Math.random();
-                if (rand < 0.15) world.push("IRON_ORE");
-                else if (rand < 0.35) world.push("COAL_ORE");
-                else if (rand < 0.65) world.push("STONE");
-                else if (rand < 0.85) world.push("DIRT");
-                else world.push("GRASS");
-            }
-        }
-
-        // --- ИГРОК ---
-        const player = {
-            pos_x: Math.floor(WORLD_SIZE / 2),
-            hp: 10,
-            inventory: { "GRASS": 10, "DIRT": 10, "STONE": 5, "COAL_ORE": 0, "IRON_ORE": 0 },
-            hotbar: ["GRASS", "DIRT", "STONE", "COAL_ORE", "IRON_ORE"],
-            selectedIndex: 0,
-            
-            get selectedBlock() {
-                return this.hotbar[this.selectedIndex];
-            }
-        };
-
-        // Камера
-        let cameraX = player.pos_x * BLOCK_SIZE - canvas.width / 2;
-
-        // --- ИГРОВАЯ ЛОГИКА И ВЗАИМОДЕЙСТВИЕ ---
-        function movePlayer(dir) {
-            let newPos = player.pos_x + dir;
-            if (newPos > 0 && newPos < WORLD_SIZE - 1) {
-                player.pos_x = newPos;
-            }
-        }
-
-        function breakBlock() {
-            let currentBlock = world[player.pos_x];
-            if (BLOCK_TYPES[currentBlock].mineable && currentBlock !== "AIR") {
-                player.inventory[currentBlock] = (player.inventory[currentBlock] || 0) + 1;
-                world[player.pos_x] = "AIR";
-                playBeep(150, "square", 0.1); // Программный звук разрушения
-            }
-        }
-
-        function placeBlock() {
-            if (world[player.pos_x] === "AIR") {
-                let blockToPlace = player.selectedBlock;
-                if (player.inventory[blockToPlace] > 0) {
-                    world[player.pos_x] = blockToPlace;
-                    player.inventory[blockToPlace]--;
-                    playBeep(300, "triangle", 0.08); // Программный звук установки
-                }
-            }
-        }
-
-        // --- СИНТЕЗАТОР ЗВУКА (Web Audio API) ---
-        function playBeep(freq, type, duration) {
-            try {
-                let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                let oscillator = audioCtx.createOscillator();
-                let gainNode = audioCtx.createGain();
-
-                oscillator.type = type;
-                oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
-                oscillator.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + duration);
-
-                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
-
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
-
-                oscillator.start();
-                oscillator.stop(audioCtx.currentTime + duration);
-            } catch (e) {
-                // Браузер может блокировать звук до первого клика пользователя
-            }
-        }
-
-        // --- ОБРАБОТКА НАЖАТИЙ КЛАВИШ ---
-        window.addEventListener("keydown", (e) => {
-            switch(e.code) {
-                case "KeyA": case "ArrowLeft": movePlayer(-1); break;
-                case "KeyD": case "ArrowRight": movePlayer(1); break;
-                case "Space": breakBlock(); e.preventDefault(); break;
-                case "KeyE": placeBlock(); break;
-                case "Digit1": player.selectedIndex = 0; break;
-                case "Digit2": player.selectedIndex = 1; break;
-                case "Digit3": player.selectedIndex = 2; break;
-                case "Digit4": player.selectedIndex = 3; break;
-                case "Digit5": player.selectedIndex = 4; break;
-            }
-        });
-
-        // --- ОТРИСОВКА ИГРЫ ---
-        function draw() {
-            // Очистка и заливка неба
-            ctx.fillStyle = "#87CEEB";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Плавное следование камеры за игроком
-            let targetCameraX = player.pos_x * BLOCK_SIZE - canvas.width / 2;
-            cameraX += (targetCameraX - cameraX) * 0.1;
-
-            // Отрисовка блоков мира
-            for (let i = 0; i < WORLD_SIZE; i++) {
-                let blockType = world[i];
-                let blockX = i * BLOCK_SIZE - Math.floor(cameraX);
-
-                if (blockX > -BLOCK_SIZE && blockX < canvas.width) {
-                    ctx.fillStyle = BLOCK_TYPES[blockType].color;
-                    ctx.fillRect(blockX, FLOOR_Y, BLOCK_SIZE, BLOCK_SIZE);
-                    
-                    // Рисуем сетку вокруг блоков
-                    ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
-                    ctx.lineWidth = 1;
-                    ctx.strokeRect(blockX, FLOOR_Y, BLOCK_SIZE, BLOCK_SIZE);
-                }
-            }
-
-            // Отрисовка игрока (Скин Стива)
-            let playerX = player.pos_x * BLOCK_SIZE - Math.floor(cameraX);
-            
-            // Голова
-            ctx.fillStyle = "#FFDCB4";
-            ctx.fillRect(playerX + 12, FLOOR_Y - BLOCK_SIZE, 16, 16);
-            // Глаза
-            ctx.fillStyle = "#0000FF";
-            ctx.fillRect(playerX + 16, FLOOR_Y - BLOCK_SIZE + 4, 4, 4);
-            ctx.fillRect(playerX + 24, FLOOR_Y - BLOCK_SIZE + 4, 4, 4);
-            // Футболка
-            ctx.fillStyle = "#0096FF";
-            ctx.fillRect(playerX + 8, FLOOR_Y - BLOCK_SIZE + 16, 24, 16);
-            // Штаны
-            ctx.fillStyle = "#640096";
-            ctx.fillRect(playerX + 10, FLOOR_Y - BLOCK_SIZE + 32, 20, 8);
-
-            // Отрисовка селектора под игроком (желтый контур)
-            ctx.strokeStyle = "#FFFF00";
-            ctx.lineWidth = 3;
-            ctx.strokeRect(playerX, FLOOR_Y, BLOCK_SIZE, BLOCK_SIZE);
-
-            // Отрисовка HUD (Интерфейса)
-            drawHUD();
-        }
-
-        function drawHUD() {
-            ctx.fillStyle = "#000000";
-            ctx.font = "16px 'Courier New'";
-
-            // Здоровье
-            let hearts = "❤️".repeat(player.hp);
-            ctx.fillText(`HP: ${hearts}`, 15, 30);
-
-            // Информация о выбранном блоке
-            let activeBlock = player.selectedBlock;
-            let count = player.inventory[activeBlock] || 0;
-            ctx.fillStyle = "#fff";
-            ctx.shadowColor = "black";
-            ctx.shadowBlur = 4;
-            ctx.fillText(`Выбран блок: ${BLOCK_TYPES[activeBlock].name} (${count} шт.)`, 15, 60);
-            ctx.shadowBlur = 0; // Сброс тени
-        }
-
-        // --- ГЛАВНЫЙ ЦИКЛ ---
-        function gameLoop() {
-            draw();
-            requestAnimationFrame(gameLoop);
-        }
-
-        // Старт игры
-        generateWorld();
-        gameLoop();
-    </script>
+    <!-- Подключение скрипта логики -->
+    <script src="index.js"></script>
 </body>
 </html>
+
